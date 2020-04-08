@@ -5,7 +5,7 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var mysql = require('mysql');
 // pasusport.js
-const passport = require('passport')
+var passport = require('passport')
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -36,23 +36,9 @@ app.use('/db', talksRouter)
 
 
 /**
- * ルーティング
+ * 
  *
  */
-// const ALLOWED_METHODS = [
-//   'GET',
-//   'POST',
-//   'PUT',
-//   'PATCH',
-//   'DELETE',
-//   'HEAD',
-//   'OPTIONS'
-// ];
-
-// const ALLOWED_ORIGINS = [
-//   'https://127.0.0.1:3000',
-//   'https://127.0.0.1:3001'
-// ];
 
 
 
@@ -64,79 +50,56 @@ app.use('/db', talksRouter)
 const cookieSession = require('cookie-session')
 const bodyParser = require('body-parser')
 const LocalStrategy = require('passport-local').Strategy
+const session = require('express-session')
+app.use(session({
+  secret: 'keyboard cat',
+  name: 'cookie_name',
+  // store: 'sessionStore', // connect-mongo session store
+  cookie: { maxAge: 60000 },
+  proxy: true,
+  resave: true,
+  saveUninitialized: true,
+}));
+app.use(passport.initialize()) //Expressを使用している場合はInitializeが必要
+app.use(passport.session())
 
-//エラー用フラッシュメッセージのモジュールを設定
-var flash = require('connect-flash');
-app.use(flash());
-app.use(cookieSession({
-  name: 'mysession',
-  keys: ['vueauthrandomkey'],
-  maxAge: 24 * 60 * 60 * 1000 // 24 hours
-}))
-app.use(bodyParser.json())
-app.use(passport.initialize());
-app.use(passport.session());
-
-app.post("/api/login", (req, res, next) => {
-  passport.authenticate("local",
-    req.login(req.body, function (err) {
-    if (err) { 
-      res.send('これもダメ')
-    }
-    res.send("Logged in");
-  }));
-});
-passport.use(
-	new LocalStrategy(
-		{
-			usernameField: 'email', 
-			passwordField: 'password'
-		},
-		function(username, password, done) {
-			if(username == 'user@email.com' && password == 'password'){
-        //ログイン成功
-        console.log('ログイン成功')
-        return done(null, username);
-			}
-      //ログイン失敗
-      console.log('ログイン失敗')
-      return done(null, false, {message:'ID or Passwordが間違っています。'});
-		}
+passport.use(new LocalStrategy(
+  function(name, password, done) {
+    var user = { name: name, password: password};// TODO 一旦ハードコーディング
+    if(user) {
+      if (user.name !== '1') {// TODO 一旦ハードコーディング
+        console.log('ユーザーIDが間違っています')
+        return done(null, false, { message: 'ユーザーIDが間違っています。' });
+      }
+      if (user.password !== 'password') {// TODO 一旦ハードコーディング
+        console.log('パスワードが間違っています。')
+        return done(null, false, { message: 'パスワードが間違っています。' });
+      }
+      console.log('成功')
+      return done(null, user);
+    };
+  }
 ));
+app.post('/api/login',
+  passport.authenticate('local', { successRedirect: '/#/dashboard', failureRedirect: '/', }),
+);
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
 
-// const authMiddleware = (req, res, next) => {
-//   console.log(req.isAuthenticated())
-//   if (!req.isAuthenticated()) {
-//     res.status(401).send('You are not authenticated')
-//   } else {
-//     return next()
-//   }
-// }
+passport.deserializeUser(function(user, done) {
+  done(null, user);
+});
+
+
 app.get("/api/user", function(req, res) {
   console.log('mypage↓↓↓↓↓');
-  // console.log(req.user);
   if(req.user){
     res.send({ user: req.user })
   } else {
     res.send({user: 'ログインできません'})
   }
 })
-
-passport.serializeUser(function(username, done) {
-	console.log('serializeUser');
-	done(null, username);
-});
-
-passport.deserializeUser(function(username, done) {
-	console.log('deserializeUser');
-	done(null, {name:username, msg:'my message'});
-});
-
-//ログアウト
-app.get('/api/logout', function(req, res, next) {
-	req.logout();
-	// res.redirect('/');
-});
 
 
 
@@ -154,7 +117,6 @@ passport.use(new TwitterStrategy({
   },
   // 認証後の処理
   function(token, tokenSecret, profile, done) {
-    // console.log('認証後' + token, tokenSecret, profile);
     return done(null, profile);
   }
 ));
