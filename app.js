@@ -64,10 +64,10 @@ app.use(passport.initialize()) //Expressを使用している場合はInitialize
 app.use(passport.session())
 
 passport.use(new LocalStrategy(
-  function(name, password, done) {
-    var user = { name: name, password: password};// TODO 一旦ハードコーディング
+  function(username, password, done) {
+    var user = { username: username, password: password};// TODO 一旦ハードコーディング
     if(user) {
-      if (user.name !== '1') {// TODO 一旦ハードコーディング
+      if (user.username !== '1') {// TODO 一旦ハードコーディング
         console.log('ユーザーIDが間違っています')
         return done(null, false, { message: 'ユーザーIDが間違っています。' });
       }
