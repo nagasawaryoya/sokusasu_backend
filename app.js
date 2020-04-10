@@ -67,7 +67,7 @@ passport.use(new LocalStrategy(
   function(username, password, done) {
     var user = { username: username, password: password};// TODO 一旦ハードコーディング
     if(user) {
-      if (user.username !== '1') {// TODO 一旦ハードコーディング
+      if (user.username !== 'テストユーザー') {// TODO 一旦ハードコーディング
         console.log('ユーザーIDが間違っています')
         return done(null, false, { message: 'ユーザーIDが間違っています。' });
       }
