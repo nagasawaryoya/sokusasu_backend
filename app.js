@@ -36,7 +36,7 @@ app.use('/db', talksRouter)
 
 
 /**
- * ルーティング
+ * 
  *
  */
 // const ALLOWED_METHODS = [
