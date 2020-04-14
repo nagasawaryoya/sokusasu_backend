@@ -52,7 +52,7 @@ var pool = mysql.createPool({
  *
  */
 app.post('/api/regist', function(req, res) {
-  data = req.body.params;
+  const data = req.body.params;
   // 現在時刻取得
   const date = new Date();
   const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
