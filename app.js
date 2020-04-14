@@ -98,20 +98,28 @@ app.use(passport.initialize()) //Expressを使用している場合はInitialize
 app.use(passport.session())
 
 passport.use(new LocalStrategy(
-  function(name, password, done) {
-    var user = { name: name, password: password};// TODO 一旦ハードコーディング
-    if(user) {
-      if (user.name !== 'テストユーザー') {// TODO 一旦ハードコーディング
-        console.log('ユーザーIDが間違っています')
-        return done(null, false, { message: 'ユーザーIDが間違っています。' });
-      }
-      if (user.password !== 'password') {// TODO 一旦ハードコーディング
-        console.log('パスワードが間違っています。')
-        return done(null, false, { message: 'パスワードが間違っています。' });
-      }
-      console.log('成功')
-      return done(null, user);
-    };
+    function(name, password, done) {
+      pool.getConnection(function(error, connection) {
+        if (error) throw error;
+    
+        const query = 'SELECT * FROM Users WHERE mail= "' + name + '"AND password="' + password + '" LIMIT 1;'
+        // 送信されたトークをDBに保存
+        connection.query(query, function(err, result, fields) {
+          if (err) {
+            console.log('ログイン失敗'+err);
+            return done(null, false, { message: 'ログイン失敗' });
+          }
+          if(result != '') {
+            console.log('ログイン成功'+JSON.stringify(result[0]))
+            const user = result[0];
+            return done(null, user);
+          }else {
+            console.log('メアドかパスワードが間違っています。'+JSON.stringify(result[0]))
+            return done(null, false, { message: 'メアドかパスワードが間違っています。' });
+          }
+        });
+        connection.release();
+      });
   }
 ));
 app.post('/api/login',
