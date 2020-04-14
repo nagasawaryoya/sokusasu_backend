@@ -4,6 +4,7 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var mysql = require('mysql');
+require('date-utils');
 // pasusport.js
 var passport = require('passport')
 
@@ -34,12 +35,45 @@ app.use('/users', usersRouter);
 app.use('/db', talksRouter)
 
 
-
 /**
- * 
+ * DBに接続するために必要な情報
  *
  */
+var pool = mysql.createPool({
+  host : 'localhost',
+  user : 'root',
+  database: 'sokusasu',
+  password: 'Nagachan_0226DB'
+});
 
+
+/**
+ * アカウント登録
+ *
+ */
+app.post('/api/regist', function(req, res) {
+  data = req.body.params;
+  // 現在時刻取得
+  const date = new Date();
+  const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
+  data.created_at = formattedDate
+  data.update_at = formattedDate
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    const query = 'insert into Users set ?'
+    // 送信されたトークをDBに保存
+    connection.query(query, data, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+      }
+      res.header('Content-Type', 'application/json; charset=utf-8')
+      res.send(result)
+    });
+    connection.release();
+  });
+});
 
 
 /**
@@ -64,10 +98,10 @@ app.use(passport.initialize()) //Expressを使用している場合はInitialize
 app.use(passport.session())
 
 passport.use(new LocalStrategy(
-  function(username, password, done) {
-    var user = { username: username, password: password};// TODO 一旦ハードコーディング
+  function(name, password, done) {
+    var user = { name: name, password: password};// TODO 一旦ハードコーディング
     if(user) {
-      if (user.username !== 'テストユーザー') {// TODO 一旦ハードコーディング
+      if (user.name !== 'テストユーザー') {// TODO 一旦ハードコーディング
         console.log('ユーザーIDが間違っています')
         return done(null, false, { message: 'ユーザーIDが間違っています。' });
       }
@@ -93,7 +127,6 @@ passport.deserializeUser(function(user, done) {
 
 
 app.get("/api/user", function(req, res) {
-  console.log('mypage↓↓↓↓↓');
   if(req.user){
     res.send({ user: req.user })
   } else {
@@ -117,16 +150,21 @@ passport.use(new TwitterStrategy({
   },
   // 認証後の処理
   function(token, tokenSecret, profile, done) {
-    return done(null, profile);
+    const user = {}
+    // 必要な情報だけ
+    user.twitter_id = profile.id
+    user.name = profile.displayName
+    user.provider = profile.provider
+    return done(null, user);
   }
 ));
 passport.serializeUser((user, done) => {
-  console.log('serializeUser');
   done(null, user);
+  console.log('serializeUser:'+user)
 });
 passport.deserializeUser((obj, done) => {
-  console.log('deserializeUser');
   done(null, obj);
+  console.log('deserializeUser:'+obj)
 });
 
 app.get('/api/auth/twitter', passport.authenticate('twitter'));
@@ -147,7 +185,7 @@ app.get('/api/hoge', (req, res) => {
   var data = req.query;
   console.log(data);
 
-  var connection = mysql.createConnection({
+  var connectLog = mysql.createConnection({
     host : 'localhost',
     user : 'root',
     database: 'untakecourage',
@@ -155,9 +193,9 @@ app.get('/api/hoge', (req, res) => {
   });
 
   // 接続
-  connection.connect();
+  connectLog.connect();
   // 送信されたトークをDBに保存
-  connection.query('insert into talks set ?', data, function(err, res) {
+  connectLog.query('insert into talks set ?', data, function(err, res) {
     if (err) {
       console.log(err);
     }
@@ -169,7 +207,7 @@ app.get('/api/hoge', (req, res) => {
     // res.send(ret)
   });
   // DBに保存したメッセージをトーク画面に表示
-  connection.query('select * from talks WHERE room_id = 1 ORDER BY id DESC LIMIT 1;', function(error, row, fields){
+  connectLog.query('select * from talks WHERE room_id = 1 ORDER BY id DESC LIMIT 1;', function(error, row, fields){
     if (error) {
       console.log('だめだこりゃ:' + error);
     }
@@ -179,7 +217,7 @@ app.get('/api/hoge', (req, res) => {
     res.header('Content-Type', 'application/json; charset=utf-8')
     res.json(sendMessage)
   });
-  connection.end();
+  connectLog.end();
 
   // res.json(req.query)
 });
