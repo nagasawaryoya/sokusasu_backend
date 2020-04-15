@@ -85,6 +85,18 @@ const cookieSession = require('cookie-session')
 const bodyParser = require('body-parser')
 const LocalStrategy = require('passport-local').Strategy
 const session = require('express-session')
+
+// 認証済みかどうか確認
+function checkAuthentication(req, res, next) {
+  if (req.isAuthenticated()) {
+    console.log('すでに認証済')
+    next()
+  } else {
+    console.log('チョトマテチョとまてオニィさん')
+    res.status(204).send() // 認証されてないなら 204 (No Content) を返す
+  }
+}
+
 app.use(session({
   secret: 'keyboard cat',
   name: 'cookie_name',
@@ -126,15 +138,17 @@ app.post('/api/login',
   passport.authenticate('local', { successRedirect: '/#/dashboard', failureRedirect: '/', }),
 );
 passport.serializeUser(function(user, done) {
+  console.log('通常serializeUser:'+JSON.stringify(user))
   done(null, user);
 });
 
 passport.deserializeUser(function(user, done) {
+  console.log('通常deserializeUser:'+JSON.stringify(user))
   done(null, user);
 });
 
 
-app.get("/api/user", function(req, res) {
+app.get("/api/user",　checkAuthentication, function(req, res) {
   if(req.user){
     res.send({ user: req.user })
   } else {
