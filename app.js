@@ -67,9 +67,10 @@ app.post('/api/regist', function(req, res) {
     connection.query(query, data, function(err, result, fields) {
       if (err) {
         console.log(err);
+        res.send(err);
       }
       res.header('Content-Type', 'application/json; charset=utf-8')
-      res.send(result)
+      res.send('アカウント登録成功')
     });
     connection.release();
   });
@@ -148,7 +149,7 @@ passport.deserializeUser(function(user, done) {
 });
 
 
-app.get("/api/user",　checkAuthentication, function(req, res) {
+app.get("/api/user", checkAuthentication, function(req, res) {
   if(req.user){
     res.send({ user: req.user })
   } else {
@@ -199,49 +200,34 @@ app.get('/api/auth/twitter/callback',
 
 
 /**
- * トーク画面から渡されるメッセージ取得 axios
+ * お誘い新規作成
  *
  */
-app.get('/api/hoge', (req, res) => {
-  // メッセージ
-  var data = req.query;
-  console.log(data);
 
-  var connectLog = mysql.createConnection({
-    host : 'localhost',
-    user : 'root',
-    database: 'untakecourage',
-    password: 'Nagachan0226DB_'
+app.get('/api/create', function(req, res) {
+  const data = req.query;
+  // 現在時刻取得
+  const date = new Date();
+  const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
+  data.created_at = formattedDate
+  data.update_at = formattedDate
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    const query = 'insert into Invites set ?'
+    // 送信されたお誘い情報をDBに保存
+    connection.query(query, data, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+        res.send(err);
+      }
+      console.log(req.query)
+      res.header('Content-Type', 'application/json; charset=utf-8')
+      res.send('新しくお誘いしました');
+    });
+    connection.release();
   });
-
-  // 接続
-  connectLog.connect();
-  // 送信されたトークをDBに保存
-  connectLog.query('insert into talks set ?', data, function(err, res) {
-    if (err) {
-      console.log(err);
-    }
-    // console.log(data.value);
-
-    // ret = JSON.stringify(data.value);
-    // console.log(ret);
-    // res.header('Content-Type', 'application/json; charset=utf-8')
-    // res.send(ret)
-  });
-  // DBに保存したメッセージをトーク画面に表示
-  connectLog.query('select * from talks WHERE room_id = 1 ORDER BY id DESC LIMIT 1;', function(error, row, fields){
-    if (error) {
-      console.log('だめだこりゃ:' + error);
-    }
-    // console.log('DBから渡されたデータ： ' + row)
-    var sendMessage = JSON.stringify(row); // string
-    console.log('これはどう？： '+typeof sendMessage)
-    res.header('Content-Type', 'application/json; charset=utf-8')
-    res.json(sendMessage)
-  });
-  connectLog.end();
-
-  // res.json(req.query)
 });
 
 
