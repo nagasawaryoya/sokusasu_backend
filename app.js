@@ -214,8 +214,6 @@ app.get('/api/create', function(req, res) {
   // friend_user_idを使いたいのはinvite_userテーブル
   invite_userData.user_id = req.query.friend_user_id
   delete req.query.friend_user_id
-  // お誘い登録時に作成される通番
-  let invite_id = 0
 
   inviteData = req.query;
   // 現在時刻取得
@@ -225,18 +223,20 @@ app.get('/api/create', function(req, res) {
   inviteData.update_at = formattedDate
 
   pool.getConnection(function(error, connection) {
+    // 誘われたユーザーとお誘い情報を紐づけてDBに保存
     function InvitesQuery(inviteData) {
       return new Promise(function(resolve) {
         connection.query('insert into Invites set ?', inviteData, function(err, result, fields) {
           if (err) {
             console.log(err);
           }
+          // お誘い登録時に作成される通番
           const lastInvite_id = result.insertId
           resolve(lastInvite_id);
         });    
       })
     }
-    // 送信されたお誘い情報をDBに保存
+    // 誘われたユーザーとお誘いを紐づけてDBに保存
     function invite_userQuery(invite_userData) {
       return new Promise(function(resolve) {
         connection.query('insert into invite_user set ?', invite_userData, function(err, result, fields) {
@@ -248,10 +248,8 @@ app.get('/api/create', function(req, res) {
       })
     }
     async function InvitesQueryResult() {
-      // 誘われたユーザーとお誘い情報を紐づけてDBに保存
       const invite_id = await InvitesQuery(inviteData);
 
-      // 誘われたユーザーとお誘いを紐づけてDBに保存
       invite_userData.invite_id = invite_id   
       invite_userData.created_at = formattedDate
       invite_userData.update_at = formattedDate
@@ -262,10 +260,11 @@ app.get('/api/create', function(req, res) {
     InvitesQueryResult().then(function(result) {
       res.header('Content-Type', 'application/json; charset=utf-8')
       res.send('新しくお誘いしました+誘われたユーザーとの紐付けも完了しました');
-      console.log('invite_user紐付け成功')
+      console.log('Invitesとinvite_user紐付け成功')
       console.log('誘われたユーザーid'+invite_userData.user_id)
-      console.log('invite_id'+invite_id)
-      console.log('room_id'+result.insertId)
+      console.log('誘ったユーザーid'+inviteData.user_id)
+      console.log('invite_id'+invite_userData.invite_id)
+      console.log('invite_user_id'+result.insertId)
     });
   });
 });
