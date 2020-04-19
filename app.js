@@ -47,6 +47,7 @@ var pool = mysql.createPool({
 });
 
 
+
 /**
  * アカウント登録
  *
@@ -205,28 +206,67 @@ app.get('/api/auth/twitter/callback',
  */
 
 app.get('/api/create', function(req, res) {
-  const data = req.query;
+  let invite_userData = {}
+  let inviteData = {}
+
+  // オブジェクトからfriend_user_idを別のobjectに追加後削除
+  // 複数のテーブルで値のやりとりがあるが、全てのテーブルで使うわけではないから
+  // friend_user_idを使いたいのはinvite_userテーブル
+  invite_userData.user_id = req.query.friend_user_id
+  delete req.query.friend_user_id
+  // お誘い登録時に作成される通番
+  let invite_id = 0
+
+  inviteData = req.query;
   // 現在時刻取得
   const date = new Date();
   const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
-  data.created_at = formattedDate
-  data.update_at = formattedDate
+  inviteData.created_at = formattedDate
+  inviteData.update_at = formattedDate
 
   pool.getConnection(function(error, connection) {
-    if (error) throw error;
-
-    const query = 'insert into Invites set ?'
+    function InvitesQuery(inviteData) {
+      return new Promise(function(resolve) {
+        connection.query('insert into Invites set ?', inviteData, function(err, result, fields) {
+          if (err) {
+            console.log(err);
+          }
+          const lastInvite_id = result.insertId
+          resolve(lastInvite_id);
+        });    
+      })
+    }
     // 送信されたお誘い情報をDBに保存
-    connection.query(query, data, function(err, result, fields) {
-      if (err) {
-        console.log(err);
-        res.send(err);
-      }
-      console.log(req.query)
+    function invite_userQuery(invite_userData) {
+      return new Promise(function(resolve) {
+        connection.query('insert into invite_user set ?', invite_userData, function(err, result, fields) {
+          if (err) {
+            console.log(err);
+          }
+          resolve(result);
+        });    
+      })
+    }
+    // 誘われたユーザーとお誘い情報を紐づけてDBに保存
+    async function InvitesQueryResult() {
+      const invite_id = await InvitesQuery(inviteData);
+
+      // 誘われたユーザーとお誘いを紐づけてDBに保存
+      invite_userData.invite_id = invite_id   
+      invite_userData.created_at = formattedDate
+      invite_userData.update_at = formattedDate
+      const result = await invite_userQuery(invite_userData);
+
+      return result;
+    }
+    InvitesQueryResult().then(function(result) {
       res.header('Content-Type', 'application/json; charset=utf-8')
-      res.send('新しくお誘いしました');
+      res.send('新しくお誘いしました+誘われたユーザーとの紐付けも完了しました');
+      console.log('invite_user紐付け成功')
+      console.log('誘われたユーザーid'+invite_userData.user_id)
+      console.log('invite_id'+invite_id)
+      console.log('room_id'+result.insertId)
     });
-    connection.release();
   });
 });
 
