@@ -247,8 +247,8 @@ app.get('/api/create', function(req, res) {
         });    
       })
     }
-    // 誘われたユーザーとお誘い情報を紐づけてDBに保存
     async function InvitesQueryResult() {
+      // 誘われたユーザーとお誘い情報を紐づけてDBに保存
       const invite_id = await InvitesQuery(inviteData);
 
       // 誘われたユーザーとお誘いを紐づけてDBに保存
