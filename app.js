@@ -4,13 +4,13 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var mysql = require('mysql');
+var squel = require("squel");
 require('date-utils');
 // pasusport.js
 var passport = require('passport')
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
-var talksRouter = require('./public/javascripts/db');
 
 var app = express();
 
@@ -31,8 +31,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
-// talksテーブル接続　（練習）
-app.use('/db', talksRouter)
+
 
 
 /**
@@ -63,8 +62,8 @@ app.post('/api/regist', function(req, res) {
   pool.getConnection(function(error, connection) {
     if (error) throw error;
 
-    const query = 'insert into Users set ?'
     // 送信されたトークをDBに保存
+    const query = 'insert into Users set ?'
     connection.query(query, data, function(err, result, fields) {
       if (err) {
         console.log(err);
@@ -115,9 +114,9 @@ passport.use(new LocalStrategy(
     function(name, password, done) {
       pool.getConnection(function(error, connection) {
         if (error) throw error;
-    
-        const query = 'SELECT * FROM Users WHERE mail= "' + name + '"AND password="' + password + '" LIMIT 1;'
+
         // 送信されたトークをDBに保存
+        const query = 'SELECT * FROM Users WHERE mail= "' + name + '"AND password="' + password + '" LIMIT 1;'
         connection.query(query, function(err, result, fields) {
           if (err) {
             console.log('ログイン失敗'+err);
@@ -150,6 +149,8 @@ passport.deserializeUser(function(user, done) {
 });
 
 
+
+// ログイン成功後、ユーザーの情報を取得する
 app.get("/api/user", checkAuthentication, function(req, res) {
   if(req.user){
     res.send({ user: req.user })
@@ -206,8 +207,8 @@ app.get('/api/auth/twitter/callback',
  */
 
 app.get('/api/create', function(req, res) {
-  let invite_userData = {}
   let inviteData = {}
+  let invite_userData = {}
 
   // オブジェクトからfriend_user_idを別のobjectに追加後削除
   // 複数のテーブルで値のやりとりがあるが、全てのテーブルで使うわけではないから
@@ -223,7 +224,7 @@ app.get('/api/create', function(req, res) {
   inviteData.update_at = formattedDate
 
   pool.getConnection(function(error, connection) {
-    // 誘われたユーザーとお誘い情報を紐づけてDBに保存
+    // 誘ったお誘い情報をDBに保存
     function InvitesQuery(inviteData) {
       return new Promise(function(resolve) {
         connection.query('insert into Invites set ?', inviteData, function(err, result, fields) {
@@ -266,6 +267,31 @@ app.get('/api/create', function(req, res) {
       console.log('invite_id'+invite_userData.invite_id)
       console.log('invite_user_id'+result.insertId)
     });
+  });
+});
+
+
+
+/**
+ * お誘い一覧取得
+ *
+ */
+
+app.get('/api/inviteList', function(req, res) {
+  const user_id = req.query.id
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    // 誘った and 誘われた一覧情報取得
+    const query = 'SELECT inviting.*, invited.user_id, invited.answer FROM Invites as inviting LEFT OUTER JOIN invite_user as invited ON (inviting.id = invited.invite_id ) WHERE (inviting.user_id = '+user_id+' OR invited.user_id = '+user_id+') AND invited.answer IS NULL AND date_add(CAST(inviting.date AS DATETIME), INTERVAL inviting.start_time HOUR_SECOND) > now() ;'
+    connection.query(query, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+      }
+      console.log(result)
+      res.json(result[0])
+    });
+    connection.release();
   });
 });
 
