@@ -56,6 +56,7 @@ app.post('/api/regist', function(req, res) {
   // 現在時刻取得
   const date = new Date();
   const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
+  data.active_status = 0
   data.created_at = formattedDate
   data.update_at = formattedDate
 
@@ -283,13 +284,13 @@ app.get('/api/inviteList', function(req, res) {
     if (error) throw error;
 
     // 誘った and 誘われた一覧情報取得
-    const query = 'SELECT inviting.*, invited.user_id, invited.answer FROM Invites as inviting LEFT OUTER JOIN invite_user as invited ON (inviting.id = invited.invite_id ) WHERE (inviting.user_id = '+user_id+' OR invited.user_id = '+user_id+') AND invited.answer IS NULL AND date_add(CAST(inviting.date AS DATETIME), INTERVAL inviting.start_time HOUR_SECOND) > now() ;'
+    const query = 'SELECT inviting.* , invited.user_id as target_user_id, invited.answer , user.name as target_user_name FROM Invites as inviting LEFT OUTER JOIN invite_user as invited ON (inviting.id = invited.invite_id ) INNER JOIN Users as user ON ((user.id = inviting.user_id AND invited.user_id = '+user_id+')OR (user.id = invited.user_id AND inviting.user_id = '+user_id+')) WHERE (inviting.user_id = '+user_id+' OR invited.user_id = '+user_id+') AND invited.answer IS NULL AND date_add(CAST(inviting.date AS DATETIME), INTERVAL inviting.start_time HOUR_SECOND) > now() ;'
     connection.query(query, function(err, result, fields) {
       if (err) {
         console.log(err);
       }
       console.log(result)
-      res.json(result[0])
+      res.json(result)
     });
     connection.release();
   });
