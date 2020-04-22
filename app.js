@@ -298,6 +298,119 @@ app.get('/api/inviteList', function(req, res) {
 
 
 
+/**
+ * お誘い返答
+ *
+ */
+
+app.get('/api/join', function(req, res) {
+  var data = req.query
+  var inviteInfo = {}
+  // 誘われた人のid
+  let invited_user_id = data.user_id
+  let invite_id = data.invite_id
+  console.log(invited_user_id)
+  // ルームのメンバー全員を配列に入れる
+  let room_members = []
+  room_members.push(invited_user_id)
+  // 現在時刻取得
+  const date = new Date();
+  const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
+  let created_at = formattedDate
+  let update_at = formattedDate
+  let RoomsData = {}
+  RoomsData.invite_id = invite_id
+  RoomsData.created_at = created_at
+  RoomsData.update_at = update_at
+  let room_userData = {}
+  room_userData.created_at = created_at
+  room_userData.update_at = update_at
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+    // 返答したお誘いの情報を取得
+    function getInvitesQuery() {
+      return new Promise(function(resolve) {
+        connection.query('SELECT user_id as invite_user_id FROM Invites WHERE id='+invite_id, function(err, result, fields) {
+          if (err) {
+            console.log(err);
+          }
+          // 誘った人のid
+          let invite_user_id = result[0].invite_user_id
+          console.log('欲しい'+invite_user_id)
+          room_members.push(invite_user_id)
+          console.log('欲しい2'+room_members)
+          // 誘った人のidを次の処理に渡す
+          resolve(invite_user_id);
+        });    
+      })
+    }
+    // お誘いに参加することをDBに保存
+    function inviteJoinQuery() {
+      return new Promise(function(resolve) {
+        connection.query('UPDATE invite_user SET answer=1 WHERE user_id='+invited_user_id+' AND invite_id='+invite_id, function(err, result, fields) {
+          if (err) {
+            console.log(err);
+          }
+          resolve(result);
+        });    
+      })
+    }
+    // ルーム開設
+    function openRoomQuery(RoomsData) {
+      return new Promise(function(resolve) {
+        connection.query('insert into Rooms set ?', RoomsData, function(err, result, fields) {
+          if (err) {
+            console.log(err);
+          }
+          // ルーム開設時に作成される通番
+          const room_id = result.insertId
+          console.log('ルーーーーーーーーーむ'+room_id)
+          room_userData.room_id = room_id;
+          resolve(result);
+        });    
+      })
+    }
+    // ルームに参加しているメンバーをDBに保存
+    function room_userQuery(room_userData) {
+      console.log('ルーーーーーーーーーむ２'+JSON.stringify(room_userData))
+      return new Promise(function(resolve) {
+        room_members.forEach(function( room_member ) {
+          console.log( 'room_member'+room_member );
+          room_userData.user_id = room_member
+
+          connection.query('insert into room_user set ?', room_userData, function(err, result, fields) {
+            if (err) {
+              console.log(err);
+            }
+            resolve(result);
+          });
+        });
+      })
+    }
+    async function QueryResult() {
+      inviteInfo = await getInvitesQuery(invite_id);
+      await inviteJoinQuery(invited_user_id, invite_id);
+      await openRoomQuery(RoomsData);
+      const success = await room_userQuery(room_userData);
+
+      return success;
+    }
+    QueryResult().then(function(success) {
+      res.header('Content-Type', 'application/json; charset=utf-8')
+      res.send('ルーム作成まで終了しました');
+      console.log(success)
+    });
+
+    connection.release();
+  });
+    // お誘いに参加するのでDBに保存
+    // const query = 'UPDATE invite_user SET answer=1 WHERE user_id='+data.user_id+' AND invite_id='+invite_id+';'
+    // const query = 'UPDATE invite_user SET answer=1 WHERE user_id='+data.user_id+' AND invite_id='+invite_id+';'
+    // const query = 'UPDATE invite_user SET answer=1 WHERE user_id='+data.user_id+' AND invite_id='+invite_id+';'
+});
+
+
 // =============================================
 // =============================================
 // =============================================
