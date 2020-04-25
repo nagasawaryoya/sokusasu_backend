@@ -72,8 +72,8 @@ app.post('/api/regist', function(req, res) {
       }
       res.header('Content-Type', 'application/json; charset=utf-8')
       res.send('アカウント登録成功')
+      connection.release();
     });
-    connection.release();
   });
 });
 
@@ -88,16 +88,16 @@ const bodyParser = require('body-parser')
 const LocalStrategy = require('passport-local').Strategy
 const session = require('express-session')
 
-// 認証済みかどうか確認
-function checkAuthentication(req, res, next) {
-  if (req.isAuthenticated()) {
-    console.log('すでに認証済')
-    next()
-  } else {
-    console.log('チョトマテチョとまてオニィさん')
-    res.status(204).send() // 認証されてないなら 204 (No Content) を返す
-  }
-}
+// // 認証済みかどうか確認
+// function checkAuthentication(req, res, next) {
+//   if (req.isAuthenticated()) {
+//     console.log('すでに認証済')
+//     next()
+//   } else {
+//     console.log('チョトマテチョとまてオニィさん')
+//     res.status(204).send() // 認証されてないなら 204 (No Content) を返す
+//   }
+// }
 
 app.use(session({
   secret: 'keyboard cat',
@@ -152,7 +152,7 @@ passport.deserializeUser(function(user, done) {
 
 
 // ログイン成功後、ユーザーの情報を取得する
-app.get("/api/user", checkAuthentication, function(req, res) {
+app.get("/api/user", function(req, res) {
   if(req.user){
     res.send({ user: req.user })
   } else {
@@ -262,6 +262,7 @@ app.get('/api/create', function(req, res) {
     InvitesQueryResult().then(function(result) {
       res.header('Content-Type', 'application/json; charset=utf-8')
       res.send('新しくお誘いしました+誘われたユーザーとの紐付けも完了しました');
+      connection.release();
       console.log('Invitesとinvite_user紐付け成功')
       console.log('誘われたユーザーid'+invite_userData.user_id)
       console.log('誘ったユーザーid'+inviteData.user_id)
@@ -284,6 +285,7 @@ app.get('/api/inviteList', function(req, res) {
     if (error) throw error;
 
     // 誘った and 誘われた一覧情報取得
+    // TODO クエリ見辛すぎ
     const query = 'SELECT inviting.* , invited.user_id as target_user_id, invited.answer , user.name as target_user_name FROM Invites as inviting LEFT OUTER JOIN invite_user as invited ON (inviting.id = invited.invite_id ) INNER JOIN Users as user ON ((user.id = inviting.user_id AND invited.user_id = '+user_id+')OR (user.id = invited.user_id AND inviting.user_id = '+user_id+')) WHERE (inviting.user_id = '+user_id+' OR invited.user_id = '+user_id+') AND invited.answer IS NULL AND date_add(CAST(inviting.date AS DATETIME), INTERVAL inviting.start_time HOUR_SECOND) > now() ;'
     connection.query(query, function(err, result, fields) {
       if (err) {
@@ -291,25 +293,26 @@ app.get('/api/inviteList', function(req, res) {
       }
       console.log(result)
       res.json(result)
+      connection.release();
     });
-    connection.release();
   });
 });
 
 
 
 /**
- * お誘い返答
+ * お誘い返答(参加)
  *
  */
 
 app.get('/api/join', function(req, res) {
   var data = req.query
+  // お誘い情報
   var inviteInfo = {}
-  // 誘われた人のid
+  // 自分のid
   let invited_user_id = data.user_id
+  // お誘いid
   let invite_id = data.invite_id
-  console.log(invited_user_id)
   // ルームのメンバー全員を配列に入れる
   let room_members = []
   room_members.push(invited_user_id)
@@ -318,18 +321,21 @@ app.get('/api/join', function(req, res) {
   const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
   let created_at = formattedDate
   let update_at = formattedDate
+  // Roomsテーブルに保存するデータ
   let RoomsData = {}
   RoomsData.invite_id = invite_id
   RoomsData.created_at = created_at
   RoomsData.update_at = update_at
+  // room_userテーブルに保存するデータ
   let room_userData = {}
   room_userData.created_at = created_at
   room_userData.update_at = update_at
 
+  // TODO 一個の関数でやりすぎ？
   pool.getConnection(function(error, connection) {
     if (error) throw error;
     // 返答したお誘いの情報を取得
-    function getInvitesQuery() {
+    function getInvitesQuery(invite_id) {
       return new Promise(function(resolve) {
         connection.query('SELECT user_id as invite_user_id FROM Invites WHERE id='+invite_id, function(err, result, fields) {
           if (err) {
@@ -337,18 +343,16 @@ app.get('/api/join', function(req, res) {
           }
           // 誘った人のid
           let invite_user_id = result[0].invite_user_id
-          console.log('欲しい'+invite_user_id)
           room_members.push(invite_user_id)
-          console.log('欲しい2'+room_members)
           // 誘った人のidを次の処理に渡す
           resolve(invite_user_id);
         });    
       })
     }
     // お誘いに参加することをDBに保存
-    function inviteJoinQuery() {
+    function inviteJoinQuery(invited_user_id, invite_id) {
       return new Promise(function(resolve) {
-        connection.query('UPDATE invite_user SET answer=1 WHERE user_id='+invited_user_id+' AND invite_id='+invite_id, function(err, result, fields) {
+        connection.query('UPDATE invite_user SET answer=1, update_at=now() WHERE user_id='+invited_user_id+' AND invite_id='+invite_id, function(err, result, fields) {
           if (err) {
             console.log(err);
           }
@@ -375,8 +379,8 @@ app.get('/api/join', function(req, res) {
     function room_userQuery(room_userData) {
       console.log('ルーーーーーーーーーむ２'+JSON.stringify(room_userData))
       return new Promise(function(resolve) {
+        // お誘いした人もされた人も、ルームと紐づける
         room_members.forEach(function( room_member ) {
-          console.log( 'room_member'+room_member );
           room_userData.user_id = room_member
 
           connection.query('insert into room_user set ?', room_userData, function(err, result, fields) {
@@ -392,23 +396,97 @@ app.get('/api/join', function(req, res) {
       inviteInfo = await getInvitesQuery(invite_id);
       await inviteJoinQuery(invited_user_id, invite_id);
       await openRoomQuery(RoomsData);
-      const success = await room_userQuery(room_userData);
+      await room_userQuery(room_userData);
 
-      return success;
+      return inviteInfo;
     }
-    QueryResult().then(function(success) {
+    QueryResult().then(function(inviteInfo) {
       res.header('Content-Type', 'application/json; charset=utf-8')
-      res.send('ルーム作成まで終了しました');
-      console.log(success)
+      res.json(inviteInfo);
+      console.log(inviteInfo)
+      connection.release();
     });
-
-    connection.release();
   });
-    // お誘いに参加するのでDBに保存
-    // const query = 'UPDATE invite_user SET answer=1 WHERE user_id='+data.user_id+' AND invite_id='+invite_id+';'
-    // const query = 'UPDATE invite_user SET answer=1 WHERE user_id='+data.user_id+' AND invite_id='+invite_id+';'
-    // const query = 'UPDATE invite_user SET answer=1 WHERE user_id='+data.user_id+' AND invite_id='+invite_id+';'
 });
+
+
+/**
+ * お誘い返答(お断り)
+ *
+ */
+app.get('/api/decline', function(req, res) {
+  // 誘われた人
+  const invited_user_id = req.query.user_id
+  const invite_id = req.query.invite_id
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    // お断りしたことをDBに保存
+    connection.query('UPDATE invite_user SET answer=2, update_at=now() WHERE user_id='+invited_user_id+' AND invite_id='+invite_id, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+        res.send(err);
+      }
+      res.header('Content-Type', 'application/json; charset=utf-8')
+      res.send('お断りしました...')
+      connection.release();
+      console.log(result);
+    });
+  });
+})
+
+
+
+/**
+ * 自分が参加しているルームの情報取得
+ *
+ */
+
+app.get('/api/get_rooms', function(req, res) {
+  // 自分のid
+  let user_id = req.query.user_id
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    // ルームの情報取得
+    const query = 'SELECT roomUser.room_id, invite.* FROM room_user as roomUser LEFT OUTER JOIN Rooms as room ON (roomUser.room_id = room.id) LEFT OUTER JOIN Invites as invite ON (room.invite_id = invite.id) WHERE roomUser.user_id = '+user_id+' AND (date_add(CAST(invite.date AS DATETIME), INTERVAL invite.start_time HOUR_SECOND) > now()) AND invite.date + INTERVAL 1 DAY > CURRENT_DATE(); '
+    // const query = 'SELECT roomUser.room_id, invite.* FROM room_user as roomUser LEFT OUTER JOIN Rooms as room ON (roomUser.room_id = room.id) INNER JOIN Users as user ON (user.id = roomUser.user_id) LEFT OUTER JOIN Invites as invite ON (room.invite_id = invite.id) WHERE NOT (roomUser.user_id = '+user_id+') AND (date_add(CAST(invite.date AS DATETIME), INTERVAL invite.start_time HOUR_SECOND) > now()) AND invite.date + INTERVAL 1 DAY > CURRENT_DATE(); '
+    connection.query(query, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+      }
+      console.log(result);
+      res.json(result)
+      connection.release();
+    })
+  });
+});
+
+
+// 自分以外のルームメンバーを取得する
+app.get('/api/get_room_member', function(req, res) {
+  // 自分のid
+  let user_id = req.query.user_id
+  // クリックされたルームのid
+  let room_id = req.query.room_id  
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    // ルームの情報取得
+    const query = 'SELECT roomUser.user_id, user.name as friend_name FROM room_user as roomUser INNER JOIN Users as user ON (roomUser.user_id = user.id) WHERE roomUser.room_id='+room_id+' AND NOT (roomUser.user_id = '+user_id+')'
+    connection.query(query, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+      }
+      console.log(result);
+      res.json(result)
+      connection.release();
+    })
+  });
+});
+
 
 
 // =============================================
@@ -430,5 +508,6 @@ app.use(function(err, req, res, next) {
   res.status(err.status || 500);
   res.render('error');
 });
+
 
 module.exports = app;
