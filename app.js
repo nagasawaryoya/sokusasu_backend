@@ -286,7 +286,7 @@ app.get('/api/inviteList', function(req, res) {
 
     // 誘った and 誘われた一覧情報取得
     // TODO クエリ見辛すぎ
-    const query = 'SELECT inviting.* , invited.user_id as target_user_id, invited.answer , user.name as target_user_name FROM Invites as inviting LEFT OUTER JOIN invite_user as invited ON (inviting.id = invited.invite_id ) INNER JOIN Users as user ON ((user.id = inviting.user_id AND invited.user_id = '+user_id+')OR (user.id = invited.user_id AND inviting.user_id = '+user_id+')) WHERE (inviting.user_id = '+user_id+' OR invited.user_id = '+user_id+') AND invited.answer IS NULL AND date_add(CAST(inviting.date AS DATETIME), INTERVAL inviting.start_time HOUR_SECOND) > now() ;'
+    const query = 'SELECT inviting.* , invited.user_id as target_user_id, invited.answer , user.name as target_user_name FROM Invites as inviting LEFT OUTER JOIN invite_user as invited ON (inviting.id = invited.invite_id ) INNER JOIN Users as user ON ((user.id = inviting.user_id AND invited.user_id = '+user_id+') OR (user.id = invited.user_id AND inviting.user_id = '+user_id+')) WHERE (inviting.user_id = '+user_id+' OR invited.user_id = '+user_id+') AND invited.answer IS NULL AND date_add(CAST(inviting.date AS DATETIME), INTERVAL inviting.start_time HOUR_SECOND) > now() ;'
     connection.query(query, function(err, result, fields) {
       if (err) {
         console.log(err);
