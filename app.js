@@ -469,7 +469,7 @@ app.get('/api/get_room_member', function(req, res) {
   // 自分のid
   let user_id = req.query.user_id
   // クリックされたルームのid
-  let room_id = req.query.room_id  
+  let room_id = req.query.room_id
 
   pool.getConnection(function(error, connection) {
     if (error) throw error;

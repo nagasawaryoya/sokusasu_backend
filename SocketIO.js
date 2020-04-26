@@ -1,6 +1,8 @@
 var app = require('./app');
 var http = require('http');
 var server = http.createServer(app);
+//sessionMiddlewareの取り出し
+var sessionMiddleware = app.session;
 
 /**
  * チャット機能
@@ -35,6 +37,7 @@ function socketIO(){
     socket.on('POST_MESSAGE', function(data) {
       console.log(`posted[name:${ data.name },message:${ data.message }]`)
       io.sockets.to(room).emit('MESSAGE', data)
+      io.sockets.emit('CURRENT_MESSAGE', data)
     });
   })
 };
