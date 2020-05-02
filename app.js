@@ -450,8 +450,8 @@ app.get('/api/get_rooms', function(req, res) {
     if (error) throw error;
 
     // ルームの情報取得
+    // TODO クエリ見辛すぎ
     const query = 'SELECT roomUser.room_id, invite.* FROM room_user as roomUser LEFT OUTER JOIN Rooms as room ON (roomUser.room_id = room.id) LEFT OUTER JOIN Invites as invite ON (room.invite_id = invite.id) WHERE roomUser.user_id = '+user_id+' AND (date_add(CAST(invite.date AS DATETIME), INTERVAL invite.start_time HOUR_SECOND) > now()) AND invite.date + INTERVAL 1 DAY > CURRENT_DATE(); '
-    // const query = 'SELECT roomUser.room_id, invite.* FROM room_user as roomUser LEFT OUTER JOIN Rooms as room ON (roomUser.room_id = room.id) INNER JOIN Users as user ON (user.id = roomUser.user_id) LEFT OUTER JOIN Invites as invite ON (room.invite_id = invite.id) WHERE NOT (roomUser.user_id = '+user_id+') AND (date_add(CAST(invite.date AS DATETIME), INTERVAL invite.start_time HOUR_SECOND) > now()) AND invite.date + INTERVAL 1 DAY > CURRENT_DATE(); '
     connection.query(query, function(err, result, fields) {
       if (err) {
         console.log(err);
@@ -464,7 +464,12 @@ app.get('/api/get_rooms', function(req, res) {
 });
 
 
-// 自分以外のルームメンバーを取得する
+
+/**
+ * 自分以外のルームメンバーを取得する
+ *
+ */
+
 app.get('/api/get_room_member', function(req, res) {
   // 自分のid
   let user_id = req.query.user_id
@@ -476,6 +481,70 @@ app.get('/api/get_room_member', function(req, res) {
 
     // ルームの情報取得
     const query = 'SELECT roomUser.user_id, user.name as friend_name FROM room_user as roomUser INNER JOIN Users as user ON (roomUser.user_id = user.id) WHERE roomUser.room_id='+room_id+' AND NOT (roomUser.user_id = '+user_id+')'
+    connection.query(query, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+      }
+      console.log(result);
+      res.json(result)
+      connection.release();
+    })
+  });
+});
+
+
+// メッセージをDBに保存
+app.get('/api/send_message', function(req, res) {
+  // 現在時刻取得
+  const date = new Date();
+  const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
+  let created_at = formattedDate
+  let update_at = formattedDate
+  console.log(req.query)
+  let data = req.query
+  data.created_at = created_at
+  data.update_at = update_at
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    connection.query('insert into room_message set ?', data, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+      }
+      console.log(result);
+      res.json(result)
+      connection.release();
+    })
+  });
+});
+
+
+
+// メッセージをDBから取得
+app.get('/api/get_message', function(req, res) {
+  console.log(req.query)
+  let room_id = req.query.room_id
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    const query = ` SELECT
+                      message.body,
+                      message.user_id,
+                      message.created_at AS sended_time,
+                      user.name
+                    FROM
+                      room_message AS message
+                    LEFT OUTER JOIN
+                      USERS AS user
+                    ON
+                      user.id = message.user_id
+                    WHERE
+                      message.room_id = `+room_id+`
+                    ORDER BY 
+                      message.created_at ASC
+                  `
     connection.query(query, function(err, result, fields) {
       if (err) {
         console.log(err);

@@ -35,7 +35,7 @@ function socketIO(){
     });
 
     socket.on('POST_MESSAGE', function(data) {
-      console.log(`posted[name:${ data.name },message:${ data.message }]`)
+      console.log(`posted[name:${ data.name },body:${ data.body }]`)
       io.sockets.to(room).emit('MESSAGE', data)
       io.sockets.emit('CURRENT_MESSAGE', data)
     });
