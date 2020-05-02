@@ -103,7 +103,7 @@ app.use(session({
   secret: 'keyboard cat',
   name: 'cookie_name',
   // store: 'sessionStore', // connect-mongo session store
-  cookie: { maxAge: 60000 },
+  cookie: { maxAge: 24 * 60 * 60 * 1000  }, // 24 hours
   proxy: true,
   resave: true,
   saveUninitialized: true,
@@ -184,14 +184,14 @@ passport.use(new TwitterStrategy({
     return done(null, user);
   }
 ));
-passport.serializeUser((user, done) => {
-  done(null, user);
-  console.log('serializeUser:'+user)
-});
-passport.deserializeUser((obj, done) => {
-  done(null, obj);
-  console.log('deserializeUser:'+obj)
-});
+// passport.serializeUser((user, done) => {
+//   done(null, user);
+//   console.log('serializeUser:'+user)
+// });
+// passport.deserializeUser((obj, done) => {
+//   done(null, obj);
+//   console.log('deserializeUser:'+obj)
+// });
 
 app.get('/api/auth/twitter', passport.authenticate('twitter'));
 app.get('/api/auth/twitter/callback', 
