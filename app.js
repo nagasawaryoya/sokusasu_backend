@@ -184,14 +184,14 @@ passport.use(new TwitterStrategy({
     return done(null, user);
   }
 ));
-// passport.serializeUser((user, done) => {
-//   done(null, user);
-//   console.log('serializeUser:'+user)
-// });
-// passport.deserializeUser((obj, done) => {
-//   done(null, obj);
-//   console.log('deserializeUser:'+obj)
-// });
+passport.serializeUser((user, done) => {
+  done(null, user);
+  console.log('serializeUser:'+user)
+});
+passport.deserializeUser((obj, done) => {
+  done(null, obj);
+  console.log('deserializeUser:'+obj)
+});
 
 app.get('/api/auth/twitter', passport.authenticate('twitter'));
 app.get('/api/auth/twitter/callback', 
