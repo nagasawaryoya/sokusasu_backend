@@ -47,6 +47,13 @@ var pool = mysql.createPool({
 
 
 
+// QRコード用にランダムな文字列生成
+const {randomBytes} = require('crypto')
+function generateRandomString(length) {
+  return randomBytes(length).reduce((p, i) => p + (i % 32).toString(32), '')
+}
+
+
 /**
  * アカウント登録
  *
@@ -59,6 +66,10 @@ app.post('/api/regist', function(req, res) {
   data.active_status = 0
   data.created_at = formattedDate
   data.update_at = formattedDate
+
+  // QRコード用45文字のランダムな文字列
+  const randomPass = generateRandomString(45)
+  data.qr_text = randomPass
 
   pool.getConnection(function(error, connection) {
     if (error) throw error;
@@ -198,6 +209,163 @@ app.get('/api/auth/twitter/callback',
   passport.authenticate('twitter', { successRedirect: '/#/dashboard',failureRedirect: '/login' }), (req, res) => {
   res.json({ user: req.user });
   console.log(req.user)
+});
+
+
+
+/**
+ * QRコード更新
+ *
+ */
+app.get('/api/create_qr', function(req, res) {
+  // 自分のid
+  let user_id = req.query.user_id
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+
+    connection.query('UPDATE Users SET qr_text='+"'"+randomPass+"'"+', update_at=now() WHERE id='+user_id, function(err, result) {
+      if (err) {
+        console.log(err);
+      }
+      console.log(result);
+      res.json(randomPass)
+      connection.release();
+    })
+  });
+});
+
+
+
+/**
+ * QRコードを取得
+ *
+ */
+app.get('/api/get_qr', function(req, res) {
+  // 自分のid
+  const user_id = req.query.user_id
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+    const query = ` SELECT
+                      qr_text                      
+                    FROM
+                      Users
+                    WHERE
+                      id = `+user_id+`
+                  `
+    connection.query(query, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+      }
+      console.log(result);
+      res.json(result[0])
+      connection.release();
+    })
+  });
+});
+
+
+
+/**
+ * QRコードを読み取る
+ *
+ */
+app.get('/api/fiend_application', function(req, res) {
+  // qrコードの文字列
+  const qr_text = req.query.qr_text
+
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+    const query = ` SELECT
+                      id,
+                      name
+                    FROM
+                      Users
+                    WHERE
+                      qr_text = `+"'"+qr_text+"'"+`
+                  `
+    connection.query(query, function(err, result, fields) {
+      if (err) {
+        console.log(err);
+      }
+      console.log(result);
+      res.json(result[0])
+      connection.release();
+    })
+  });
+});
+
+
+/**
+ * 友達申請
+ *
+ */
+app.get('/api/follow', function(req, res) {
+console.log(req.query)
+// 自分のid
+const follow_user_id = Number(req.query.follow_user_id)
+// 申請先の友達のid
+const follower_user_id = Number(req.query.follower_user_id)
+// 友達申請中
+const status = 2
+
+// 現在時刻取得
+const date = new Date();
+const formattedDate = date.toFormat("YYYY-MM-DD HH24:MI:SS");
+const created_at = formattedDate
+const update_at = formattedDate
+
+pool.getConnection(function(error, connection) {
+  if (error) throw error;
+
+  const query =  `
+                  INSERT INTO 
+                    follow_relation
+                    (
+                      follow_user_id,
+                      follower_user_id,
+                      status,
+                      created_at,
+                      update_at
+                    )
+                  SELECT
+                  `+
+                    follow_user_id+','+
+                    follower_user_id+','+
+                    status+','+
+                    "'"+created_at+"'"+','+
+                    "'"+update_at+"'"+
+                  `
+                  FROM dual
+                  WHERE NOT EXISTS (
+                    SELECT
+                      follow_user_id,
+                      follower_user_id
+                    FROM
+                      follow_relation
+                    WHERE
+                      follow_user_id = `+follow_user_id+`
+                    AND
+                      follower_user_id = `+follower_user_id+`
+                    AND
+                      status = 2
+                  )
+                  `
+  connection.query(query, function(err, result) {
+    if (err) {
+      console.log(err);
+    }
+    if (result.insertId != 0) {
+      res.json(result)
+      console.log(result)
+    }else {
+      res.json({existmessage:'すでに申請済'})
+      console.log('すでに申請済')
+    }
+    connection.release();
+  })
+});
 });
 
 
