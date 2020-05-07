@@ -371,6 +371,145 @@ pool.getConnection(function(error, connection) {
 
 
 /**
+ * 友達かも表示
+ *
+ */
+app.get('/api/get_Friend_candidate', function(req, res) {
+  console.log(req.query.user_id)
+  // 自分のid
+  const user_id = req.query.user_id
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+  
+    const query =  `
+                    SELECT
+                      user.name,
+                      relation.status,
+                    CASE
+                      WHEN relation.follow_user_id = `+user_id+` THEN 'following'
+                      WHEN relation.follower_user_id = `+user_id+` THEN  'followed'
+                      ELSE 'nothing'
+                    END as follow_status
+                    FROM
+                      follow_relation as relation
+                    LEFT OUTER JOIN
+                      Users as user
+                    ON
+                      (
+                      user.id = relation.follow_user_id
+                      OR
+                      user.id = relation.follower_user_id
+                      )
+                    WHERE
+                      (  
+                        relation.status = 2
+                        AND
+                        (
+                        relation.follow_user_id = `+user_id+`
+                        OR
+                        relation.follower_user_id = `+user_id+`
+                        )
+                        AND NOT
+                        (
+                          user.id = `+user_id+`
+                        )
+                      )
+                    LIMIT
+                      1
+                    `
+    connection.query(query, function(err, result) {
+      if (err) {
+        console.log(err);
+      }else {
+        res.json(result)
+        console.log(result)
+      }
+      connection.release();
+    })
+  });
+});
+
+
+
+/**
+ * 友達表示
+ *
+ */
+app.get('/api/get_friend_list', function(req, res) {
+  console.log(req.query.user_id)
+  // 自分のid
+  const user_id = req.query.user_id
+  pool.getConnection(function(error, connection) {
+    if (error) throw error;
+  
+    const query =  `
+                    SELECT
+                      user.name,
+                      invite.title,
+                      invite.min_price,
+                      invite.max_price,
+                      invite.locate,
+                      invite.date,
+                      invite.other,
+                      invite.start_time,
+                      invite.end_time,
+                      relation.status
+                    FROM
+                      follow_relation as relation
+                    LEFT OUTER JOIN
+                      Users as user
+                    ON
+                      (
+                      user.id = relation.follow_user_id
+                      OR
+                      user.id = relation.follower_user_id
+                      )
+                    LEFT OUTER JOIN
+                      Invites as invite
+                    ON
+                    (
+                      invite.user_id = relation.follow_user_id
+                      OR
+                      invite.user_id = relation.follower_user_id
+                    )
+                    WHERE
+                      relation.status = 1
+                    AND
+                    (  
+                      invite.date < now()
+                      AND
+                        (
+                        relation.follow_user_id = `+user_id+`
+                        OR
+                        relation.follower_user_id = `+user_id+`
+                        )
+                      AND NOT
+                      (
+                        user.id = `+user_id+`
+                      )
+                      AND
+                      invite.user_id = `+user_id+`
+                    )
+                    ORDER BY 
+                      invite.date DESC
+                    LIMIT
+                      1
+                    `
+    connection.query(query, function(err, result) {
+      if (err) {
+        console.log(err);
+      }else {
+        res.json(result)
+        console.log(result)
+      }
+      connection.release();
+    })
+  });
+});
+
+
+
+/**
  * お誘い新規作成
  *
  */
@@ -721,6 +860,35 @@ app.get('/api/get_message', function(req, res) {
       res.json(result)
       connection.release();
     })
+  });
+});
+
+
+
+// ホットペッパーAPIからショップ情報を取得
+const fetch = require('node-fetch');
+app.get('/api/get_shop', function(req, res) {
+  const x = req.query.x
+  const y = req.query.y
+  fetch('http://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=8cde1d40742a31c8&lat='+y+'&lng='+x+'&range=3&order=4&format=json', {
+    method: 'GET',
+    Accept: "application/json",
+    "Content-Type": "application/json; charset=utf-8",
+    mode: 'no-cors',
+    cache: "no-cache",
+    credentials: "same-origin",
+    redirect: "follow",
+    referrer: "no-referrer",
+  })
+  .then(function(response) {
+    return response.json();
+  })
+  .then(function(myJson) {
+    console.log(JSON.stringify(myJson));
+    res.send(JSON.stringify(myJson))
+  })
+  .catch(function(err) {
+    console.log(err)
   });
 });
 
